@@ -1,103 +1,83 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
-void main() => runApp(const BMICalculatorApp());
+void main() {
+  runApp(const CompassApp());
+}
 
-class BMICalculatorApp extends StatelessWidget {
-  const BMICalculatorApp({super.key});
+class CompassApp extends StatelessWidget {
+  const CompassApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: BMICalculatorScreen(),
+      home: CompassScreen(),
     );
   }
 }
 
-class BMICalculatorScreen extends StatefulWidget {
-  const BMICalculatorScreen({super.key});
+class CompassScreen extends StatefulWidget {
+  const CompassScreen({super.key});
 
   @override
-  State<BMICalculatorScreen> createState() => _BMICalculatorScreenState();
+  State<CompassScreen> createState() => _CompassScreenState();
 }
 
-class _BMICalculatorScreenState extends State<BMICalculatorScreen> {
-  final TextEditingController weightController = TextEditingController();
-  final TextEditingController heightController = TextEditingController();
+class _CompassScreenState extends State<CompassScreen> {
+  double _azimuth = 0;
 
-  String result = "";
+  @override
+  void initState() {
+    super.initState();
 
-  void calculateBMI() {
-    double weight = double.parse(
-        weightController.text);
-    double height =
-        double.parse(heightController.text) / 100;
+    List<double> accelerometerValues = [0, 0, 0];
+    List<double> magnetometerValues = [0, 0, 0];
 
-    double bmi = weight / (height * height);
-
-    String bmiCategory = "";
-    if (bmi < 16) {
-      bmiCategory = "Острый дефицит массы";
-    } else if (bmi >= 16 && bmi <= 18.5) {
-      bmiCategory = "Недостаточная масса тела";
-    } else if (bmi > 18.5 && bmi <= 25) {
-      bmiCategory = "Норма";
-    } else if (bmi > 25 && bmi <= 30) {
-      bmiCategory = "Избыточная масса тела";
-    } else if (bmi > 30 && bmi <= 35) {
-      bmiCategory = "Ожирение первой степени";
-    } else if (bmi > 35 && bmi <= 40) {
-      bmiCategory = "Ожирение второй степени";
-    } else if (bmi > 40) {
-      bmiCategory = "Ожирение третьей степени";
-    }
-
-    setState(() {
-      result = "Ваш ИМТ: ${bmi.toStringAsFixed(1)} ($bmiCategory)";
+    accelerometerEvents.listen((AccelerometerEvent event) {
+      setState(() {
+        accelerometerValues = [event.x, event.y, event.z];
+      });
     });
+
+    magnetometerEvents.listen((MagnetometerEvent event) {
+      setState(() {
+        magnetometerValues = [event.x, event.y, event.z];
+      });
+
+      _azimuth = calculateAzimuth(accelerometerValues, magnetometerValues);
+    });
+  }
+
+  double calculateAzimuth(List<double> accel, List<double> mag) {
+    double ax = accel[0], ay = accel[1], az = accel[2];
+    double mx = mag[0], my = mag[1], mz = mag[2];
+
+    double normAccel = math.sqrt(ax * ax + ay * ay + az * az);
+    ax /= normAccel;
+    ay /= normAccel;
+    az /= normAccel;
+
+    double normMag = math.sqrt(mx * mx + my * my + mz * mz);
+    mx /= normMag;
+    my /= normMag;
+    mz /= normMag;
+
+    double hx = my * az - mz * ay;
+    double hy = mz * ax - mx * az;
+    double azimuth = math.atan2(hy, hx) * (180 / math.pi);
+
+    return (azimuth >= 0 ? azimuth : azimuth + 360);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Калькулятор ИМТ'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: weightController,
-              decoration: const InputDecoration(
-                labelText: 'Вес (кг)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: heightController,
-              decoration: const InputDecoration(
-                labelText: 'Рост (см)',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-
-            ElevatedButton(
-              onPressed: calculateBMI,
-              child: const Text('Рассчитать ИМТ'),
-            ),
-            const SizedBox(height: 16),
-
-            Text(
-              result,
-              style: const TextStyle(fontSize: 20),
-              textAlign: TextAlign.center,
-            ),
-          ],
+      appBar: AppBar(title: const Text('Компас')),
+      body: Center(
+        child: Transform.rotate(
+          angle: (_azimuth * (math.pi / 180) * -1),
+          child: Image.asset('assets/compass.png', scale: 5,),
         ),
       ),
     );
