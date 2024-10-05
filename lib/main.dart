@@ -1,83 +1,54 @@
-import 'dart:math' as math;
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 void main() {
-  runApp(const CompassApp());
+  runApp(const DiceApp());
 }
 
-class CompassApp extends StatelessWidget {
-  const CompassApp({super.key});
+class DiceApp extends StatelessWidget {
+  const DiceApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: CompassScreen(),
+      home: DiceScreen(),
     );
   }
 }
 
-class CompassScreen extends StatefulWidget {
-  const CompassScreen({super.key});
+class DiceScreen extends StatefulWidget {
+  const DiceScreen({super.key});
 
   @override
-  State<CompassScreen> createState() => _CompassScreenState();
+  State<DiceScreen> createState() => _DiceScreenState();
 }
 
-class _CompassScreenState extends State<CompassScreen> {
-  double _azimuth = 0;
+class _DiceScreenState extends State<DiceScreen> {
+  int _diceNumber = 1;
 
-  @override
-  void initState() {
-    super.initState();
-
-    List<double> accelerometerValues = [0, 0, 0];
-    List<double> magnetometerValues = [0, 0, 0];
-
-    accelerometerEvents.listen((AccelerometerEvent event) {
-      setState(() {
-        accelerometerValues = [event.x, event.y, event.z];
-      });
+  void _rollDice() {
+    setState(() {
+      _diceNumber = Random().nextInt(6) + 1;
     });
-
-    magnetometerEvents.listen((MagnetometerEvent event) {
-      setState(() {
-        magnetometerValues = [event.x, event.y, event.z];
-      });
-
-      _azimuth = calculateAzimuth(accelerometerValues, magnetometerValues);
-    });
-  }
-
-  double calculateAzimuth(List<double> accel, List<double> mag) {
-    double ax = accel[0], ay = accel[1], az = accel[2];
-    double mx = mag[0], my = mag[1], mz = mag[2];
-
-    double normAccel = math.sqrt(ax * ax + ay * ay + az * az);
-    ax /= normAccel;
-    ay /= normAccel;
-    az /= normAccel;
-
-    double normMag = math.sqrt(mx * mx + my * my + mz * mz);
-    mx /= normMag;
-    my /= normMag;
-    mz /= normMag;
-
-    double hx = my * az - mz * ay;
-    double hy = mz * ax - mx * az;
-    double azimuth = math.atan2(hy, hx) * (180 / math.pi);
-
-    return (azimuth >= 0 ? azimuth : azimuth + 360);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Компас')),
+      appBar: AppBar(
+        title: const Text('Кости'),
+      ),
       body: Center(
-        child: Transform.rotate(
-          angle: (_azimuth * (math.pi / 180) * -1),
-          child: Image.asset('assets/compass.png', scale: 5,),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Image.asset('assets/dice$_diceNumber.png', height: 150, width: 150),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _rollDice,
+              child: const Text('Кинуть'),
+            ),
+          ],
         ),
       ),
     );
