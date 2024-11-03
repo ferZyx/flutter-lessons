@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:rxdart/rxdart.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -12,114 +15,91 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Audio Player',
+      title: 'Firebase Auth Demo',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
-      home: const AudioPlayerScreen(),
+      home: const AuthWrapper(),
     );
   }
 }
 
-class AudioPlayerScreen extends StatefulWidget {
-  const AudioPlayerScreen({super.key});
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
   @override
-  State<AudioPlayerScreen> createState() => _AudioPlayerScreenState();
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        } else if (snapshot.hasData) {
+          return const HomeScreen();
+        } else {
+          return const LoginScreen();
+        }
+      },
+    );
+  }
 }
 
-class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
-  late AudioPlayer _audioPlayer;
-  late Stream<Duration?> _durationStream;
-  late Stream<Duration> _positionStream;
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    _audioPlayer = AudioPlayer();
-    _audioPlayer.setUrl(
-        'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-    _durationStream = _audioPlayer.durationStream;
-    _positionStream = _audioPlayer.positionStream;
-  }
+  _LoginScreenState createState() => _LoginScreenState();
+}
 
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
-  }
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
-  Stream<PositionData> get _positionDataStream =>
-      Rx.combineLatest2<Duration, Duration?, PositionData>(
-        _positionStream,
-        _durationStream,
-        (position, duration) =>
-            PositionData(position, duration ?? Duration.zero),
+  Future<void> signIn() async {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
+    } catch (e) {
+      print('Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to sign in: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Audio Player'),
-      ),
+      appBar: AppBar(title: const Text('Login')),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            StreamBuilder<PositionData>(
-              stream: _positionDataStream,
-              builder: (context, snapshot) {
-                final positionData = snapshot.data;
-                return Column(
-                  children: [
-                    if (positionData != null) ...[
-                      Slider(
-                        min: 0.0,
-                        max: positionData.duration.inMilliseconds.toDouble(),
-                        value: positionData.position.inMilliseconds.toDouble(),
-                        onChanged: (value) {
-                          _audioPlayer
-                              .seek(Duration(milliseconds: value.toInt()));
-                        },
-                      ),
-                      Text(
-                        '${positionData.position.inSeconds} / ${positionData.duration.inSeconds} сек',
-                      ),
-                    ]
-                  ],
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: const InputDecoration(labelText: 'Password'),
+              obscureText: true,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: signIn,
+              child: const Text('Login'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RegisterScreen()),
                 );
               },
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    _audioPlayer.seek(Duration.zero);
-                    _audioPlayer.stop();
-                  },
-                  child: const Text('Stop'),
-                ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (_audioPlayer.playing) {
-                      await _audioPlayer.pause();
-                    } else {
-                      await _audioPlayer.play();
-                    }
-                  },
-                  child: StreamBuilder<bool>(
-                    stream: _audioPlayer.playingStream,
-                    builder: (context, snapshot) {
-                      bool isPlaying = snapshot.data ?? false;
-                      return Text(isPlaying ? 'Pause' : 'Play');
-                    },
-                  ),
-                ),
-              ],
+              child: const Text('Create an Account'),
             ),
           ],
         ),
@@ -128,9 +108,81 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   }
 }
 
-class PositionData {
-  final Duration position;
-  final Duration duration;
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
-  PositionData(this.position, this.duration);
+  @override
+  _RegisterScreenState createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+
+  Future<void> signUp() async {
+    try {
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      print('Error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to sign up: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: passwordController,
+              decoration: const InputDecoration(labelText: 'Password'),
+              obscureText: true,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: signUp,
+              child: const Text('Register'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Home'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
+      ),
+      body: const Center(
+        child: Text('Welcome to Home Screen!'),
+      ),
+    );
+  }
 }
